@@ -63,7 +63,7 @@ def extract_stats(eval_infos, key, **kwargs):
 
     values = np.array(values)
     final_values = np.array(final_values)
-    stats = create_stats_ordered_dict(key, values)
+    stats = create_stats_ordered_dict(key, values, **kwargs)
     stats.update(
         create_stats_ordered_dict(key + '/final', final_values, **kwargs)
     )

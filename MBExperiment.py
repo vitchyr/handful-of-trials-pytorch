@@ -115,12 +115,13 @@ class MBExperiment:
                 )
                 samples.append(sample)
                 eval_infos.append(eval_info)
-            for k, v in generate_logging_info(
-                    samples,
-                    eval_infos,
-                    len(traj_obs),
-            ).items():
-                logger.record_tabular(k, v)
+            eval_logs = generate_logging_info(samples, eval_infos)
+            logger.record_tabular('epoch', i)
+            logger.record_tabular(
+                'exploration/num steps total',
+                len(traj_obs) * self.task_hor,
+            )
+            logger.record_dict(eval_logs, prefix='evaluation/eval/')
             logger.dump_tabular()
             traj_obs.extend([sample["obs"] for sample in samples[:self.nrollouts_per_iter]])
             traj_acs.extend([sample["ac"] for sample in samples[:self.nrollouts_per_iter]])
@@ -150,18 +151,20 @@ class MBExperiment:
                 )
 
 
-def generate_logging_info(samples, eval_infos, num_exploration_steps):
+def generate_logging_info(samples, eval_infos):
     stats = OrderedDict()
-    stats['returns/mean'] = np.mean([sample["reward_sum"] for sample in samples])
-    stats['rewards/mean'] = np.mean([sample["reward_avg"] for sample in samples])
-    stats['rewards/final'] = np.mean([sample["rewards"][..., -1] for sample in samples])
-    stats['exploration/num steps total'] = num_exploration_steps
+    stats['Average Returns'] = np.mean([sample["reward_sum"] for sample in samples])
+    stats.update(
+        eval_util.create_stats_ordered_dict(
+            'Rewards',
+            np.array([sample["rewards"] for sample in samples])
+        )
+    )
     if eval_infos and eval_infos[0]:
         eval_keys = eval_infos[0][0].keys()
         for key in eval_keys:
             stats.update(eval_util.extract_stats(
                 eval_infos,
                 key,
-                stat_prefix='evaluation/eval',
             ))
     return stats

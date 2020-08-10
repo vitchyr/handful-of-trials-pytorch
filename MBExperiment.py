@@ -3,14 +3,18 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+from collections import OrderedDict
 from time import localtime, strftime
+import numpy as np
 
 from dotmap import DotMap
 from scipy.io import savemat
 from tqdm import trange
 
+import eval_util
 from Agent import Agent
 from DotmapUtils import get_required_argument
+from easy_logger import logger
 
 
 class MBExperiment:
@@ -59,7 +63,7 @@ class MBExperiment:
 
         self.logdir = os.path.join(
             get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
-            strftime("%Y-%m-%d--%H:%M:%S", localtime())
+            strftime("%Y-%m-%d--%H-%M-%S", localtime())
         )
         self.nrecord = params.log_cfg.get("nrecord", 0)
         self.neval = params.log_cfg.get("neval", 1)
@@ -68,17 +72,17 @@ class MBExperiment:
         """Perform experiment.
         """
         os.makedirs(self.logdir, exist_ok=True)
+        logger.set_snapshot_dir(self.logdir)
 
         traj_obs, traj_acs, traj_rets, traj_rews = [], [], [], []
 
         # Perform initial rollouts
         samples = []
         for i in range(self.ninit_rollouts):
-            samples.append(
-                self.agent.sample(
-                    self.task_hor, self.policy
-                )
+            sample, infos = self.agent.sample(
+                self.task_hor, self.policy
             )
+            samples.append(sample)
             traj_obs.append(samples[-1]["obs"])
             traj_acs.append(samples[-1]["ac"])
             traj_rews.append(samples[-1]["rewards"])
@@ -99,14 +103,25 @@ class MBExperiment:
             os.makedirs(iter_dir, exist_ok=True)
 
             samples = []
+            eval_infos = []
 
-            for j in range(max(self.neval, self.nrollouts_per_iter)):
-                samples.append(
-                    self.agent.sample(
-                        self.task_hor, self.policy
-                    )
+            for rollout_i in range(max(self.neval, self.nrollouts_per_iter)):
+                video_path = os.path.join(
+                    self.logdir,
+                    'eval_iter{}_rollout{}.mp4'.format(i, rollout_i)
                 )
-            print("Rewards obtained:", [sample["reward_sum"] for sample in samples[:self.neval]])
+                sample, eval_info = self.agent.sample(
+                    self.task_hor, self.policy, record_fname=video_path,
+                )
+                samples.append(sample)
+                eval_infos.append(eval_info)
+            for k, v in generate_logging_info(
+                    samples,
+                    eval_infos,
+                    len(traj_obs),
+            ).items():
+                logger.record_tabular(k, v)
+            logger.dump_tabular()
             traj_obs.extend([sample["obs"] for sample in samples[:self.nrollouts_per_iter]])
             traj_acs.extend([sample["ac"] for sample in samples[:self.nrollouts_per_iter]])
             traj_rets.extend([sample["reward_sum"] for sample in samples[:self.neval]])
@@ -133,3 +148,20 @@ class MBExperiment:
                     [sample["ac"] for sample in samples],
                     [sample["rewards"] for sample in samples]
                 )
+
+
+def generate_logging_info(samples, eval_infos, num_exploration_steps):
+    stats = OrderedDict()
+    stats['returns/mean'] = np.mean([sample["reward_sum"] for sample in samples])
+    stats['rewards/mean'] = np.mean([sample["reward_avg"] for sample in samples])
+    stats['rewards/final'] = np.mean([sample["rewards"][..., -1] for sample in samples])
+    stats['exploration/num steps total'] = num_exploration_steps
+    if eval_infos and eval_infos[0]:
+        eval_keys = eval_infos[0][0].keys()
+        for key in eval_keys:
+            stats.update(eval_util.extract_stats(
+                eval_infos,
+                key,
+                stat_prefix='evaluation/eval',
+            ))
+    return stats

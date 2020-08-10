@@ -7,6 +7,7 @@ import time
 import numpy as np
 from dotmap import DotMap
 # from gym.monitoring import VideoRecorder
+from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
 
 class Agent:
@@ -43,10 +44,9 @@ class Agent:
             The keys of the dictionary are 'obs', 'ac', and 'reward_sum'.
         """
         video_record = record_fname is not None
-        # recorder = None if not video_record else VideoRecorder(self.env, record_fname)
-        recorder = None
+        recorder = None if not video_record else VideoRecorder(self.env, record_fname)
 
-        times, rewards = [], []
+        times, rewards, infos = [], [], []
         O, A, reward_sum, done = [self.env.reset()], [], 0, False
 
         policy.reset()
@@ -59,6 +59,7 @@ class Agent:
 
             obs, reward, done, info = self.env.step(A[t])
 
+            infos.append(info)
             O.append(obs)
             reward_sum += reward
             rewards.append(reward)
@@ -76,5 +77,7 @@ class Agent:
             "obs": np.array(O),
             "ac": np.array(A),
             "reward_sum": reward_sum,
+            "reward_avg": reward_sum / len(rewards),
+            "reward_final": rewards[-1],
             "rewards": np.array(rewards),
-        }
+        }, infos

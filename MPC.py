@@ -316,7 +316,7 @@ class MPC(Controller):
                 {"means": self.pred_means, "vars": self.pred_vars}
             )
             self.pred_means, self.pred_vars = [], []
-    
+
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
 

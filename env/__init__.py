@@ -1,4 +1,12 @@
 from gym.envs.registration import register
+from multiworld import register_all_envs
+
+register_all_envs()
+
+register(
+    id='Pygame2D-v0',
+    entry_point='env.pygame:create_pygame_2d',
+)
 
 register(
     id='MBRLCartpole-v0',

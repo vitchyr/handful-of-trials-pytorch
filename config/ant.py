@@ -17,7 +17,7 @@ class AntConfigModule:
     NTRAIN_ITERS = 15
     NROLLOUTS_PER_ITER = 1
     PLAN_HOR = 25
-    MODEL_IN, MODEL_OUT = 6, 4
+    MODEL_IN, MODEL_OUT = 38, 30
     GP_NINDUCING_POINTS = 200
 
     def __init__(self):
@@ -37,20 +37,27 @@ class AntConfigModule:
 
     @staticmethod
     def obs_preproc(obs):
-        return obs
+        return obs[:, :30]
 
     @staticmethod
     def obs_postproc(obs, pred):
-        return obs + pred
+        new_next_state = pred + obs[:, :30]
+        goals = obs[:, -15:]
+        new_next_obs = torch.cat((new_next_state, goals), dim=1)
+        return new_next_obs
 
     @staticmethod
     def targ_proc(obs, next_obs):
-        return next_obs - obs
+        return (next_obs - obs)[:, :30]
+
+    @staticmethod
+    def goal_proc(obs):
+        return obs[:, -15:]
 
     @staticmethod
     def obs_cost_fn(obs):
-        positions = obs[:, :2]
-        goals = obs[:, 2:]
+        positions = obs[:, :15]
+        goals = obs[:, -15:]
         deltas = (positions - goals)
         distances = (deltas ** 2).sum(dim=1).sqrt()
         return (distances >= 0.6).type(obs.dtype)

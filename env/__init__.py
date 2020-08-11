@@ -10,12 +10,12 @@ register(
 
 register(
     id='SawyerPushFlat-v0',
-    entry_point='env.sawyer:create_flat_push',
+    entry_point='env.sawyer:create_sawyer_push_flat',
 )
 
 register(
     id='AntFlat-v0',
-    entry_point='env.sawyer:create_flat_ant',
+    entry_point='env.ant:create_ant_flat',
 )
 
 register(

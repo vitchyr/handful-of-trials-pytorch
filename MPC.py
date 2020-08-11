@@ -138,6 +138,7 @@ class MPC(Controller):
         self.obs_cost_fn = get_required_argument(params.opt_cfg, "obs_cost_fn", "Must provide cost on observations.")
         self.ac_cost_fn = get_required_argument(params.opt_cfg, "ac_cost_fn", "Must provide cost on actions.")
         self.use_log_prob_cost = params.opt_cfg.get("use_log_prob_cost", False)
+        print("use log prob cost", self.use_log_prob_cost)
 
         self.save_all_models = params.log_cfg.get("save_all_models", False)
         self.log_traj_preds = params.log_cfg.get("log_traj_preds", False)
@@ -355,10 +356,13 @@ class MPC(Controller):
         for t in range(self.plan_hor):
             cur_acs = ac_seqs[t]
 
-            next_obs = self._predict_next_obs(cur_obs, cur_acs)
+            next_obs, mean, logvar = self._predict_next_obs(cur_obs, cur_acs)
 
             if self.use_log_prob_cost:
-                cost = self.compute_gcac_cost(next_obs, cur_acs)
+                cost = (
+                   self.compute_gcac_cost(next_obs, mean, logvar)
+                   + self.ac_cost_fn(cur_acs)
+                )
             else:
                 cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
@@ -382,14 +386,16 @@ class MPC(Controller):
 
         inputs = torch.cat((proc_obs, acs), dim=-1)
 
-        mean, var = self.model(inputs)
+        mean, logvar = self.model(inputs)
 
-        predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * var.sqrt()
+        std = (logvar / 2.).exp()
+
+        predictions = mean + torch.randn_like(mean, device=TORCH_DEVICE) * std
 
         # TS Optimization: Remove additional dimension
         predictions = self._flatten_to_matrix(predictions)
 
-        return self.obs_postproc(obs, predictions)
+        return self.obs_postproc(obs, predictions), mean, logvar
 
     def _expand_to_ts_format(self, mat):
         dim = mat.shape[-1]
@@ -417,12 +423,9 @@ class MPC(Controller):
 
         return reshaped
 
-    def compute_gcac_cost(self, next_obs, cur_acs):
-        input = torch.cat((self.obs_preproc(next_obs), cur_acs), dim=1)
-        mean, logvar = self.model(input, ret_logvar=True)
-        inv_var = torch.exp(-logvar)
+    def compute_gcac_cost(self, next_obs, mean, logvar):
         goals = self.goal_proc(next_obs)
-
+        inv_var = torch.exp(-logvar)
         # up to a constant
         negative_log_prob = ((mean - goals) ** 2) * inv_var + logvar
         costs = negative_log_prob.mean(dim=0).sum(dim=-1)

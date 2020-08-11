@@ -37,20 +37,27 @@ class SawyerPushConfigModule:
 
     @staticmethod
     def obs_preproc(obs):
-        return obs
+        return obs[:, :4]
 
     @staticmethod
     def obs_postproc(obs, pred):
-        return obs + pred
+        new_next_state = pred + obs[:, :4]
+        goals = obs[:, 4:]
+        new_next_obs = torch.cat((new_next_state, goals), dim=1)
+        return new_next_obs
 
     @staticmethod
     def targ_proc(obs, next_obs):
-        return next_obs - obs
+        return (next_obs - obs)[:, :4]
+
+    @staticmethod
+    def goal_proc(obs):
+        return obs[:, 4:]
 
     @staticmethod
     def obs_cost_fn(obs):
-        positions = obs[:, :2]
-        goals = obs[:, 2:]
+        positions = obs[:, :4]
+        goals = obs[:, 4:]
         deltas = (positions - goals)
         distances = (deltas ** 2).sum(dim=1).sqrt()
         return (distances >= 0.6).type(obs.dtype)

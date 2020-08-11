@@ -9,6 +9,16 @@ register(
 )
 
 register(
+    id='SawyerFlatPush-v0',
+    entry_point='env.sawyer:create_flat_push',
+)
+
+register(
+    id='AntFlat-v0',
+    entry_point='env.sawyer:create_flat_ant',
+)
+
+register(
     id='PygameBox2D-v0',
     entry_point='env.pygame:create_pygame_box_2d',
 )

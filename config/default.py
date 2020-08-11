@@ -35,6 +35,7 @@ def create_config(env_name, ctrl_type, ctrl_args, overrides, logdir):
             ),
             opt_cfg=DotMap(
                 plan_hor=int,
+                use_log_prob_cost=make_bool,
             ),
             log_cfg=DotMap(
                 save_all_models=make_bool,
@@ -89,6 +90,8 @@ def _create_ctrl_config(ctrl_cfg, cfg_module, ctrl_type, ctrl_args, type_map):
         ctrl_cfg.prop_cfg.obs_postproc = cfg_module.obs_postproc
     if hasattr(cfg_module, "targ_proc"):
         ctrl_cfg.prop_cfg.targ_proc = cfg_module.targ_proc
+    if hasattr(cfg_module, "goal_proc"):
+        ctrl_cfg.prop_cfg.goal_proc = cfg_module.goal_proc
 
     ctrl_cfg.opt_cfg.plan_hor = cfg_module.PLAN_HOR
     ctrl_cfg.opt_cfg.obs_cost_fn = cfg_module.obs_cost_fn
@@ -124,6 +127,7 @@ def _create_ctrl_config(ctrl_cfg, cfg_module, ctrl_type, ctrl_args, type_map):
 
     # Setting MPC cfg
     ctrl_cfg.opt_cfg.mode = "CEM"
+    ctrl_cfg.opt_cfg.use_log_prob_cost = False
     type_map.ctrl_cfg.opt_cfg.cfg = DotMap(
         max_iters=int,
         popsize=int,

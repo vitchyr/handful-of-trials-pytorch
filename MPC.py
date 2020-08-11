@@ -92,6 +92,7 @@ class MPC(Controller):
                         observations and returns the array of targets (so that the model learns the mapping
                         obs -> targ_proc(obs, next_obs)). Defaults to lambda obs, next_obs: next_obs.
                         Note: Only needs to process NumPy arrays.
+                    .goal_proc (func): (optional) A function that extracts the goal out of an observation
                 .opt_cfg
                     .mode (str): Internal optimizer that will be used. Choose between [CEM].
                     .cfg (DotMap): A map of optimizer initializer parameters.
@@ -101,6 +102,7 @@ class MPC(Controller):
                         Note: Must be able to process both NumPy and Tensorflow arrays.
                     .ac_cost_fn (func): A function which computes the cost of every action
                         in a 2D matrix.
+                    .use_log_prob_cost (bool): (optional) Use the log probability to compute the cost. Default: False
                 .log_cfg
                     .save_all_models (bool): (optional) If True, saves models at every iteration.
                         Defaults to False (only most recent model is saved).
@@ -129,11 +131,13 @@ class MPC(Controller):
         self.obs_postproc = params.prop_cfg.get("obs_postproc", lambda obs, model_out: model_out)
         self.obs_postproc2 = params.prop_cfg.get("obs_postproc2", lambda next_obs: next_obs)
         self.targ_proc = params.prop_cfg.get("targ_proc", lambda obs, next_obs: next_obs)
+        self.goal_proc = params.prop_cfg.get("goal_proc", lambda obs: obs)
 
         self.opt_mode = get_required_argument(params.opt_cfg, "mode", "Must provide optimization method.")
         self.plan_hor = get_required_argument(params.opt_cfg, "plan_hor", "Must provide planning horizon.")
         self.obs_cost_fn = get_required_argument(params.opt_cfg, "obs_cost_fn", "Must provide cost on observations.")
         self.ac_cost_fn = get_required_argument(params.opt_cfg, "ac_cost_fn", "Must provide cost on actions.")
+        self.use_log_prob_cost = params.opt_cfg.get("use_log_prob_cost", False)
 
         self.save_all_models = params.log_cfg.get("save_all_models", False)
         self.log_traj_preds = params.log_cfg.get("log_traj_preds", False)
@@ -353,7 +357,10 @@ class MPC(Controller):
 
             next_obs = self._predict_next_obs(cur_obs, cur_acs)
 
-            cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
+            if self.use_log_prob_cost:
+                cost = self.compute_gcac_cost(next_obs, cur_acs)
+            else:
+                cost = self.obs_cost_fn(next_obs) + self.ac_cost_fn(cur_acs)
 
             cost = cost.view(-1, self.npart)
 
@@ -409,3 +416,14 @@ class MPC(Controller):
         reshaped = transposed.contiguous().view(-1, dim)
 
         return reshaped
+
+    def compute_gcac_cost(self, next_obs, cur_acs):
+        input = torch.cat((self.obs_preproc(next_obs), cur_acs), dim=1)
+        mean, logvar = self.model(input, ret_logvar=True)
+        inv_var = torch.exp(-logvar)
+        goals = self.goal_proc(next_obs)
+
+        # up to a constant
+        negative_log_prob = ((mean - goals) ** 2) * inv_var + logvar
+        costs = negative_log_prob.mean(dim=0).sum(dim=-1)
+        return costs

@@ -128,6 +128,10 @@ class PygameBaseConfigModule:
         return (next_obs - obs)[:, :2]
 
     @staticmethod
+    def goal_proc(obs):
+        return obs[:, 2:]
+
+    @staticmethod
     def obs_cost_fn(obs):
         raise NotImplementedError()
 

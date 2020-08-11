@@ -9,6 +9,11 @@ register(
 )
 
 register(
+    id='PygameBox2D-v0',
+    entry_point='env.pygame:create_pygame_box_2d',
+)
+
+register(
     id='MBRLCartpole-v0',
     entry_point='env.cartpole:CartpoleEnv'
 )

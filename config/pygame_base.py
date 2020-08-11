@@ -84,8 +84,7 @@ class PtModel(nn.Module):
         return mean, torch.exp(logvar)
 
 
-class PygameDenseConfigModule:
-    ENV_NAME = 'Pygame2D-v0'
+class PygameBaseConfigModule:
     TASK_HORIZON = 100
     NTRAIN_ITERS = 15
     NROLLOUTS_PER_ITER = 1
@@ -126,11 +125,7 @@ class PygameDenseConfigModule:
 
     @staticmethod
     def obs_cost_fn(obs):
-        positions = obs[:, :2]
-        goals = obs[:, 2:]
-        deltas = (positions - goals)
-        distances = (deltas ** 2).sum(dim=1).sqrt()
-        return distances
+        raise NotImplementedError()
 
     @staticmethod
     def ac_cost_fn(acs):
@@ -153,4 +148,9 @@ class PygameDenseConfigModule:
         return model
 
 
-CONFIG_MODULE = PygameDenseConfigModule
+class PygameNoWallsConfigModule(PygameBaseConfigModule):
+    ENV_NAME = 'Pygame2D-v0'
+
+
+class PygameBoxWallsConfigModule(PygameBaseConfigModule):
+    ENV_NAME = 'PygameBox2D-v0'

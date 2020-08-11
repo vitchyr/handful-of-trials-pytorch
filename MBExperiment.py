@@ -72,7 +72,6 @@ class MBExperiment:
         """Perform experiment.
         """
         os.makedirs(self.logdir, exist_ok=True)
-        logger.set_snapshot_dir(self.logdir)
 
         traj_obs, traj_acs, traj_rets, traj_rews = [], [], [], []
 

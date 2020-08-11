@@ -17,6 +17,13 @@ import torch
 import numpy as np
 import random
 import tensorflow as tf
+from easy_logger import logger
+
+DIRECTORIES_TO_SAVE = [
+    '/home/vitchyr/git/pets-pytorch/',
+    '/home/vitchyr/git/multiworld/',
+    '/home/vitchyr/git/easy-logger/',
+]
 
 
 def set_global_seeds(seed):
@@ -45,6 +52,16 @@ def main(env, ctrl_type, ctrl_args, overrides, logdir):
     os.makedirs(exp.logdir)
     with open(os.path.join(exp.logdir, "config.txt"), "w") as f:
         f.write(pprint.pformat(cfg.toDict()))
+
+    logger.set_snapshot_dir(exp.logdir)
+    print("snapshot dir: ", logger.get_snapshot_dir())
+    logger.save_git_snapshot(DIRECTORIES_TO_SAVE)
+    logger.save_main_script()
+    tabular_log_path = os.path.join(exp.logdir, 'progress.csv')
+    logger.add_tabular_output(tabular_log_path)
+    variant_log_path = os.path.join(exp.logdir, 'variant.json')
+    logger.log_variant(variant_log_path, cfg.toDict())
+    logger.push_prefix('[%s] ' % exp.logdir)
 
     exp.run_experiment()
 

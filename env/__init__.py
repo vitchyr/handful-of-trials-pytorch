@@ -9,7 +9,7 @@ register(
 )
 
 register(
-    id='SawyerFlatPush-v0',
+    id='SawyerPushFlat-v0',
     entry_point='env.sawyer:create_flat_push',
 )
 

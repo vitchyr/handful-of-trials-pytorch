@@ -89,7 +89,8 @@ class PygameBaseConfigModule:
     NTRAIN_ITERS = 15
     NROLLOUTS_PER_ITER = 1
     PLAN_HOR = 25
-    MODEL_IN, MODEL_OUT = 6, 4
+    # MODEL_IN, MODEL_OUT = 6, 4
+    MODEL_IN, MODEL_OUT = 4, 2
     GP_NINDUCING_POINTS = 200
 
     # Create and move this tensor to GPU so that
@@ -113,15 +114,18 @@ class PygameBaseConfigModule:
 
     @staticmethod
     def obs_preproc(obs):
-        return obs
+        return obs[:, :2]
 
     @staticmethod
     def obs_postproc(obs, pred):
-        return obs + pred
+        new_next_state = pred + obs[:, :2]
+        goals = obs[:, 2:]
+        new_next_obs = torch.cat((new_next_state, goals), dim=1)
+        return new_next_obs
 
     @staticmethod
     def targ_proc(obs, next_obs):
-        return next_obs - obs
+        return (next_obs - obs)[:, :2]
 
     @staticmethod
     def obs_cost_fn(obs):

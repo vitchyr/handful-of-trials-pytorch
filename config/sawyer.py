@@ -70,10 +70,9 @@ class SawyerPushConfigModule:
         model = GcacModel(
             ensemble_size,
             self.MODEL_IN,
-            self.MODEL_OUT * 2,
+            self.MODEL_OUT * 2,  # * 2 b/c we output mean AND variance
             hidden_size=64,
         ).to(TORCH_DEVICE)
-        # * 2 because we output both the mean and the variance
 
         model.optim = torch.optim.Adam(model.parameters(), lr=0.001)
 

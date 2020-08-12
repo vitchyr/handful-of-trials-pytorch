@@ -37,8 +37,8 @@ def set_global_seeds(seed):
     tf.set_random_seed(seed)
 
 
-def main(env, ctrl_type, ctrl_args, overrides, logdir):
-    set_global_seeds(0)
+def main(env, ctrl_type, ctrl_args, overrides, logdir, seed):
+    set_global_seeds(seed)
 
     ctrl_args = DotMap(**{key: val for (key, val) in ctrl_args})
     cfg = create_config(env, ctrl_type, ctrl_args, overrides, logdir)
@@ -50,6 +50,8 @@ def main(env, ctrl_type, ctrl_args, overrides, logdir):
     exp = MBExperiment(cfg.exp_cfg)
 
     os.makedirs(exp.logdir)
+    cfg_dict = cfg.toDict()
+    cfg_dict['seed'] = seed
     with open(os.path.join(exp.logdir, "config.txt"), "w") as f:
         f.write(pprint.pformat(cfg.toDict()))
 
@@ -76,6 +78,12 @@ if __name__ == "__main__":
                         help='Override default parameters, see https://github.com/kchua/handful-of-trials#overrides')
     parser.add_argument('-logdir', type=str, default='log',
                         help='Directory to which results will be logged (default: ./log)')
+    parser.add_argument('-seed', type=int, default=None,
+                        help='seed. randomly chosen if not set')
     args = parser.parse_args()
 
-    main(args.env, "MPC", args.ctrl_arg, args.override, args.logdir)
+    if args.seed is None:
+        seed = random.randint(0, 99999999)
+    else:
+        seed = args.seed
+    main(args.env, "MPC", args.ctrl_arg, args.override, args.logdir, seed)

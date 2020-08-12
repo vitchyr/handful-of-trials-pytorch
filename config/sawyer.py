@@ -14,15 +14,18 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 class SawyerPushConfigModule:
     ENV_NAME = 'SawyerPushFlat-v0'
     TASK_HORIZON = 100
-    NTRAIN_ITERS = 15
-    NROLLOUTS_PER_ITER = 1
+    NTRAIN_ITERS = 1000
+    NROLLOUTS_PER_ITER = 10
     PLAN_HOR = 25
     MODEL_IN, MODEL_OUT = 6, 4
     GP_NINDUCING_POINTS = 200
 
     def __init__(self):
         self.ENV = gym.make(self.ENV_NAME)
-        self.NN_TRAIN_CFG = {"epochs": 5}
+        self.NN_TRAIN_CFG = {
+            "epochs": 5,
+            "max_num_batches_per_epoch": int(1000 / 5),
+        }
         self.OPT_CFG = {
             "Random": {
                 "popsize": 2000
@@ -53,6 +56,10 @@ class SawyerPushConfigModule:
     @staticmethod
     def goal_proc(obs):
         return obs[:, 4:]
+
+    @staticmethod
+    def achieved_goal_proc(obs):
+        return obs[:, :4]
 
     @staticmethod
     def obs_cost_fn(obs):

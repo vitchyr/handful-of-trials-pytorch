@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from time import localtime, strftime
 import numpy as np
 
@@ -14,7 +14,7 @@ from tqdm import trange
 import eval_util
 from Agent import Agent
 from DotmapUtils import get_required_argument
-from easy_logger import logger
+from easy_logger import logger, timer
 
 
 class MBExperiment:
@@ -59,17 +59,17 @@ class MBExperiment:
         )
         self.nrollouts_per_iter = params.exp_cfg.get("nrollouts_per_iter", 1)
         self.ninit_rollouts = params.exp_cfg.get("ninit_rollouts", 1)
+        self.max_num_saved_trajs = params.exp_cfg.get("max_num_saved_trajs", 100
+        )
+        self.snapshot_period = params.exp_cfg.get("snapshot_period", 20)
         self.policy = get_required_argument(params.exp_cfg, "policy", "Must provide a policy.")
 
         directory = get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory.")
         exp_name = '{}-{}'.format(
-            directory.split('/')[-1],
+            os.path.dirname(directory).split('/')[-1],
             strftime("%Y-%m-%d--%H-%M-%S", localtime()),
         )
-        self.logdir = os.path.join(
-            get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
-            exp_name,
-        )
+        self.logdir = os.path.join(directory, exp_name)
         self.nrecord = params.log_cfg.get("nrecord", 0)
         self.neval = params.log_cfg.get("neval", 1)
 
@@ -78,7 +78,11 @@ class MBExperiment:
         """
         os.makedirs(self.logdir, exist_ok=True)
 
-        traj_obs, traj_acs, traj_rets, traj_rews = [], [], [], []
+        # traj_obs, traj_acs, traj_rets, traj_rews = [], [], [], []
+        traj_obs = deque(maxlen=self.max_num_saved_trajs)
+        traj_acs = deque(maxlen=self.max_num_saved_trajs)
+        traj_rets = deque(maxlen=self.max_num_saved_trajs)
+        traj_rews = deque(maxlen=self.max_num_saved_trajs)
 
         # Perform initial rollouts
         samples = []
@@ -99,7 +103,9 @@ class MBExperiment:
             )
 
         # Training loop
+        timer.return_global_times = True
         for i in trange(self.ntrain_iters):
+            timer.reset()
             print("####################################################################")
             print("Starting training iteration %d." % (i + 1))
 
@@ -109,24 +115,26 @@ class MBExperiment:
             samples = []
             eval_infos = []
 
+            timer.start_timer('exploration')
             for rollout_i in range(max(self.neval, self.nrollouts_per_iter)):
-                video_path = os.path.join(
-                    self.logdir,
-                    'eval_iter{}_rollout{}.mp4'.format(i, rollout_i)
-                )
+                if i % self.snapshot_period == 0:
+                    video_path = os.path.join(
+                        iter_dir,
+                        'rollout{}.mp4'.format(rollout_i)
+                    )
+                    save_path = os.path.join(
+                        iter_dir,
+                        'model.pt',
+                    )
+                    self.policy.save_snapshot(save_path)
+                else:
+                    video_path = None
                 sample, eval_info = self.agent.sample(
                     self.task_hor, self.policy, record_fname=video_path,
                 )
                 samples.append(sample)
                 eval_infos.append(eval_info)
-            eval_logs = generate_logging_info(samples, eval_infos)
-            logger.record_tabular('epoch', i)
-            logger.record_tabular(
-                'exploration/num steps total',
-                len(traj_obs) * self.task_hor,
-            )
-            logger.record_dict(eval_logs, prefix='evaluation/eval/')
-            logger.dump_tabular()
+            timer.stop_timer('exploration')
             traj_obs.extend([sample["obs"] for sample in samples[:self.nrollouts_per_iter]])
             traj_acs.extend([sample["ac"] for sample in samples[:self.nrollouts_per_iter]])
             traj_rets.extend([sample["reward_sum"] for sample in samples[:self.neval]])
@@ -147,12 +155,27 @@ class MBExperiment:
             if len(os.listdir(iter_dir)) == 0:
                 os.rmdir(iter_dir)
 
+            timer.start_timer('model_training')
             if i < self.ntrain_iters - 1:
-                self.policy.train(
+                train_logs = self.policy.train(
                     [sample["obs"] for sample in samples],
                     [sample["ac"] for sample in samples],
                     [sample["rewards"] for sample in samples]
                 )
+            else:
+                train_logs = {}
+            timer.stop_timer('model_training')
+
+            logger.record_tabular('epoch', i)
+            logger.record_tabular(
+                'exploration/num steps total',
+                i * self.nrollouts_per_iter * self.task_hor,
+            )
+            eval_logs = generate_logging_info(samples, eval_infos)
+            logger.record_dict(train_logs, prefix='train')
+            logger.record_dict(eval_logs, prefix='evaluation/eval/')
+            logger.record_dict(_get_epoch_timings())
+            logger.dump_tabular()
 
 
 def generate_logging_info(samples, eval_infos):
@@ -172,3 +195,14 @@ def generate_logging_info(samples, eval_infos):
                 key,
             ))
     return stats
+
+
+def _get_epoch_timings():
+    times_itrs = timer.get_times()
+    times = OrderedDict()
+    epoch_time = 0
+    for key in sorted(times_itrs):
+        time = times_itrs[key]
+        epoch_time += time
+        times['time/{} (s)'.format(key)] = time
+    return times

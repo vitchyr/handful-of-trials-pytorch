@@ -14,15 +14,18 @@ TORCH_DEVICE = torch.device('cuda') if torch.cuda.is_available() else torch.devi
 class AntConfigModule:
     ENV_NAME = 'AntFlat-v0'
     TASK_HORIZON = 100
-    NTRAIN_ITERS = 15
-    NROLLOUTS_PER_ITER = 1
+    NTRAIN_ITERS = 2000
+    NROLLOUTS_PER_ITER = 10
     PLAN_HOR = 25
     MODEL_IN, MODEL_OUT = 38, 30
     GP_NINDUCING_POINTS = 200
 
     def __init__(self):
         self.ENV = gym.make(self.ENV_NAME)
-        self.NN_TRAIN_CFG = {"epochs": 5}
+        self.NN_TRAIN_CFG = {
+            "epochs": 1,
+            "max_num_batches_per_epoch": 1000,
+        }
         self.OPT_CFG = {
             "Random": {
                 "popsize": 2000
@@ -53,6 +56,10 @@ class AntConfigModule:
     @staticmethod
     def goal_proc(obs):
         return obs[:, -15:]
+
+    @staticmethod
+    def achieved_goal_proc(obs):
+        return obs[:, :15]
 
     @staticmethod
     def obs_cost_fn(obs):

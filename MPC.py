@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import os
+from collections import OrderedDict
 
 import numpy as np
 from scipy.io import savemat
@@ -42,6 +43,9 @@ class Controller:
         """Dumps logs into primary log directory and per-train iteration log directory.
         """
         raise NotImplementedError("Must be implemented in subclass.")
+
+    def save_snapshot(self, path):
+        raise NotImplementedError()
 
 
 def shuffle_rows(arr):
@@ -216,17 +220,24 @@ class MPC(Controller):
         # Train the pytorch model
         self.model.fit_input_stats(self.train_in)
 
-        idxs = np.random.randint(self.train_in.shape[0], size=[self.model.num_nets, self.train_in.shape[0]])
-
-        epochs = self.model_train_cfg['epochs']
+        max_num_batches_per_epoch = self.model_train_cfg.get(
+            'max_num_batches_per_epoch', None
+        )
 
         # TODO: double-check the batch_size for all env is the same
         batch_size = 32
 
+        epochs = self.model_train_cfg['epochs']
         epoch_range = trange(epochs, unit="epoch(s)", desc="Network training")
-        num_batch = int(np.ceil(idxs.shape[-1] / batch_size))
+        num_batch = int(np.ceil(self.train_in.shape[0] / batch_size))
+        if max_num_batches_per_epoch is not None:
+            num_batch = min(num_batch, max_num_batches_per_epoch)
 
+        n_updates_total = 0
+        mse_loss_np = -1
+        loss = None
         for _ in epoch_range:
+            idxs = np.random.randint(self.train_in.shape[0], size=[self.model.num_nets, self.train_in.shape[0]])
 
             for batch_num in range(num_batch):
                 batch_idxs = idxs[:, batch_num * batch_size : (batch_num + 1) * batch_size]
@@ -250,6 +261,7 @@ class MPC(Controller):
 
                 self.model.optim.zero_grad()
                 loss.backward()
+                n_updates_total += 1
                 self.model.optim.step()
 
             idxs = shuffle_rows(idxs)
@@ -260,9 +272,19 @@ class MPC(Controller):
             mean, _ = self.model(val_in)
             mse_losses = ((mean - val_targ) ** 2).mean(-1).mean(-1)
 
+            mse_loss_np = mse_losses.detach().cpu().numpy()
             epoch_range.set_postfix({
-                "Training loss(es)": mse_losses.detach().cpu().numpy()
+                "Training loss(es)": mse_loss_np,
             })
+        if loss is None:
+            loss_np = 0
+        else:
+            loss_np = loss.detach().mean().cpu().numpy()
+        return OrderedDict([
+            ('num_updates_total', n_updates_total),
+            ('mse_loss/sample', mse_loss_np),
+            ('loss/sample', loss_np),
+        ])
 
     def reset(self):
         """Resets this controller (clears previous solution, calls all update functions).
@@ -323,6 +345,9 @@ class MPC(Controller):
                 {"means": self.pred_means, "vars": self.pred_vars}
             )
             self.pred_means, self.pred_vars = [], []
+
+    def save_snapshot(self, path):
+        torch.save(self.model.state_dict(), path)
 
     @torch.no_grad()
     def _compile_cost(self, ac_seqs):
@@ -431,6 +456,8 @@ class MPC(Controller):
         next_obs_mean = self.obs_postproc(cur_obs, mean)
         del mean
         goal_mean = self.achieved_goal_proc(next_obs_mean)
+        logvar = self._flatten_to_matrix(logvar)
+        logvar = self.achieved_goal_proc(logvar)
         inv_var = torch.exp(-logvar)
         # up to a constant
         negative_log_prob = ((goal_mean - goals) ** 2) * inv_var + logvar

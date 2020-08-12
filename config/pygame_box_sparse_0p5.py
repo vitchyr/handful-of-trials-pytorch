@@ -12,7 +12,7 @@ class PygameBoxSparseConfigModule(PygameBoxWallsConfigModule):
         goals = obs[:, 2:]
         deltas = (positions - goals)
         distances = (deltas ** 2).sum(dim=1).sqrt()
-        return (distances >= 0.6).type(obs.dtype)
+        return (distances >= 0.5).type(obs.dtype)
 
 
 CONFIG_MODULE = PygameBoxSparseConfigModule

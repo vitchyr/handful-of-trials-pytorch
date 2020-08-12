@@ -61,9 +61,14 @@ class MBExperiment:
         self.ninit_rollouts = params.exp_cfg.get("ninit_rollouts", 1)
         self.policy = get_required_argument(params.exp_cfg, "policy", "Must provide a policy.")
 
+        directory = get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory.")
+        exp_name = '{}-{}'.format(
+            directory.split('/')[-1],
+            strftime("%Y-%m-%d--%H-%M-%S", localtime()),
+        )
         self.logdir = os.path.join(
             get_required_argument(params.log_cfg, "logdir", "Must provide log parent directory."),
-            strftime("%Y-%m-%d--%H-%M-%S", localtime())
+            exp_name,
         )
         self.nrecord = params.log_cfg.get("nrecord", 0)
         self.neval = params.log_cfg.get("neval", 1)

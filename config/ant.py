@@ -59,7 +59,7 @@ class AntConfigModule:
         positions = obs[:, :15]
         goals = obs[:, -15:]
         deltas = (positions - goals)
-        distances = (deltas ** 2).sum(dim=1).sqrt()
+        distances = (deltas ** 2).sum(dim=1)
         return (distances >= 0.6).type(obs.dtype)
 
     @staticmethod

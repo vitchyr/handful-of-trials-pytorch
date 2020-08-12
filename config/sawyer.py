@@ -59,7 +59,7 @@ class SawyerPushConfigModule:
         positions = obs[:, :4]
         goals = obs[:, 4:]
         deltas = (positions - goals)
-        distances = (deltas ** 2).sum(dim=1).sqrt()
+        distances = (deltas ** 2).sum(dim=1)
         return (distances >= 0.6).type(obs.dtype)
 
     @staticmethod

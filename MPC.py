@@ -93,6 +93,7 @@ class MPC(Controller):
                         obs -> targ_proc(obs, next_obs)). Defaults to lambda obs, next_obs: next_obs.
                         Note: Only needs to process NumPy arrays.
                     .goal_proc (func): (optional) A function that extracts the goal out of an observation
+                    .achieved_goal_proc (func): (optional) A function that extracts the achieved goal out of an observation
                 .opt_cfg
                     .mode (str): Internal optimizer that will be used. Choose between [CEM].
                     .cfg (DotMap): A map of optimizer initializer parameters.
@@ -132,6 +133,7 @@ class MPC(Controller):
         self.obs_postproc2 = params.prop_cfg.get("obs_postproc2", lambda next_obs: next_obs)
         self.targ_proc = params.prop_cfg.get("targ_proc", lambda obs, next_obs: next_obs)
         self.goal_proc = params.prop_cfg.get("goal_proc", lambda obs: obs)
+        self.achieved_goal_proc = params.prop_cfg.get("achieved_goal_proc", lambda obs: obs)
 
         self.opt_mode = get_required_argument(params.opt_cfg, "mode", "Must provide optimization method.")
         self.plan_hor = get_required_argument(params.opt_cfg, "plan_hor", "Must provide planning horizon.")
@@ -360,7 +362,7 @@ class MPC(Controller):
 
             if self.use_log_prob_cost:
                 cost = (
-                   self.compute_gcac_cost(next_obs, mean, logvar)
+                   self.compute_gcac_cost(cur_obs, mean, logvar)
                    + self.ac_cost_fn(cur_acs)
                 )
             else:
@@ -423,10 +425,16 @@ class MPC(Controller):
 
         return reshaped
 
-    def compute_gcac_cost(self, next_obs, mean, logvar):
-        goals = self.goal_proc(next_obs)
+    def compute_gcac_cost(self, cur_obs, mean, logvar):
+        goals = self.goal_proc(cur_obs)
+        mean = self._flatten_to_matrix(mean)
+        next_obs_mean = self.obs_postproc(cur_obs, mean)
+        del mean
+        goal_mean = self.achieved_goal_proc(next_obs_mean)
         inv_var = torch.exp(-logvar)
         # up to a constant
-        negative_log_prob = ((mean - goals) ** 2) * inv_var + logvar
-        costs = negative_log_prob.mean(dim=0).sum(dim=-1)
+        negative_log_prob = ((goal_mean - goals) ** 2) * inv_var + logvar
+        # negative_log_prob = ((goal_mean - goals) ** 2) * inv_var
+        # negative_log_prob = ((goal_mean - goals) ** 2)
+        costs = negative_log_prob.sum(dim=-1)
         return costs

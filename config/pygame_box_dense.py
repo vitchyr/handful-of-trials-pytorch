@@ -11,8 +11,9 @@ class PygameDenseConfigModule(PygameBoxWallsConfigModule):
         positions = obs[:, :2]
         goals = obs[:, 2:]
         deltas = (positions - goals)
-        distances = (deltas ** 2).sum(dim=1).sqrt()
-        return distances
+        # distances = (deltas ** 2).sum(dim=1).sqrt()
+        squared_distances = (deltas ** 2).sum(dim=1)
+        return squared_distances
 
 
 CONFIG_MODULE = PygameDenseConfigModule

@@ -92,6 +92,8 @@ def _create_ctrl_config(ctrl_cfg, cfg_module, ctrl_type, ctrl_args, type_map):
         ctrl_cfg.prop_cfg.targ_proc = cfg_module.targ_proc
     if hasattr(cfg_module, "goal_proc"):
         ctrl_cfg.prop_cfg.goal_proc = cfg_module.goal_proc
+    if hasattr(cfg_module, "achieved_goal_proc"):
+        ctrl_cfg.prop_cfg.achieved_goal_proc = cfg_module.achieved_goal_proc
 
     ctrl_cfg.opt_cfg.plan_hor = cfg_module.PLAN_HOR
     ctrl_cfg.opt_cfg.obs_cost_fn = cfg_module.obs_cost_fn

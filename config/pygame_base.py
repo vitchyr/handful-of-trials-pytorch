@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 from DotmapUtils import get_required_argument
+from config.gcac_model import GcacModel
 from config.utils import swish, get_affine_params
 
 import gym
@@ -132,6 +133,10 @@ class PygameBaseConfigModule:
         return obs[:, 2:]
 
     @staticmethod
+    def achieved_goal_proc(obs):
+        return obs[:, :2]
+
+    @staticmethod
     def obs_cost_fn(obs):
         raise NotImplementedError()
 
@@ -147,9 +152,14 @@ class PygameBaseConfigModule:
 
         assert load_model is False, 'Has yet to support loading model'
 
-        model = PtModel(ensemble_size,
-                        self.MODEL_IN, self.MODEL_OUT * 2).to(TORCH_DEVICE)
-        # * 2 because we output both the mean and the variance
+        # model = PtModel(ensemble_size,
+        #                 self.MODEL_IN, self.MODEL_OUT * 2).to(TORCH_DEVICE)
+        model = GcacModel(
+            ensemble_size,
+            self.MODEL_IN,
+            self.MODEL_OUT * 2,
+            hidden_size=64,
+        ).to(TORCH_DEVICE)
 
         model.optim = torch.optim.Adam(model.parameters(), lr=0.001)
 

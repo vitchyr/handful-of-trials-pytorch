@@ -1,5 +1,5 @@
 import numpy as np
-import tensorflow as tf
+from scipy.stats import truncnorm
 import torch
 from torch import nn as nn
 
@@ -8,22 +8,14 @@ def swish(x):
     return x * torch.sigmoid(x)
 
 
+def truncated_normal_np(size, threshold=1):
+    values = truncnorm.rvs(-threshold, threshold, size=size)
+    return values
+
+
 def truncated_normal(size, std):
-    # We use TF to implement initialization function for neural network weight because:
-    # 1. Pytorch doesn't support truncated normal
-    # 2. This specific type of initialization is important for rapid progress early in training in cartpole
-
-    # Do not allow tf to use gpu memory unnecessarily
-    cfg = tf.ConfigProto()
-    cfg.gpu_options.allow_growth = True
-
-    sess = tf.Session(config=cfg)
-    val = sess.run(tf.truncated_normal(shape=size, stddev=std))
-
-    # Close the session and free resources
-    sess.close()
-
-    return torch.tensor(val, dtype=torch.float32)
+    x = std * truncated_normal_np(size, threshold=2)
+    return torch.from_numpy(x).type(torch.float32)
 
 
 def get_affine_params(ensemble_size, in_features, out_features):

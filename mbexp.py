@@ -16,7 +16,6 @@ import env # We run this so that the env is registered
 import torch
 import numpy as np
 import random
-import tensorflow as tf
 from easy_logger import logger
 
 DIRECTORIES_TO_SAVE = [
@@ -33,8 +32,6 @@ def set_global_seeds(seed):
 
     np.random.seed(seed)
     random.seed(seed)
-
-    tf.set_random_seed(seed)
 
 
 def main(env, ctrl_type, ctrl_args, overrides, logdir, seed):
